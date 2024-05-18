@@ -10,7 +10,8 @@ agent learning algorithms for maze.
 """
 
 # reference:
-#
+# https://hh-bigdata-career.tistory.com/14
+
 
 import numpy as np
 
