@@ -1,0 +1,13 @@
+pip3 uninstall nvidia-cublas-cu12
+pip3 uninstall nvidia-cuda-cupti-cu12
+pip3 uninstall nvidia-cuda-nvcc-cu12
+pip3 uninstall nvidia-cuda-nvrtc-cu12
+pip3 uninstall nvidia-cuda-runtime-cu12
+pip3 uninstall nvidia-cudnn-cu12
+pip3 uninstall nvidia-cufft-cu12
+pip3 uninstall nvidia-curand-cu12
+pip3 uninstall nvidia-cusolver-cu12
+pip3 uninstall nvidia-cusparse-cu12
+pip3 uninstall nvidia-nccl-cu12
+pip3 uninstall nvidia-nvjitlink-cu12
+

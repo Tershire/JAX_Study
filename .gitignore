@@ -8,3 +8,6 @@ environment.txt
 # plot
 iframe_figures/
 
+# byte-compiled / optimized / DLL files
+__pycache__/
+
