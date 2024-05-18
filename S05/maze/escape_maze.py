@@ -24,9 +24,9 @@ env.reset()
 print(env.render("cell_name"))
 
 # initialize agent
-learning_algorithm = "Q-learning"
+learning_algorithm = "Q-Learning"
 match learning_algorithm:
-    case "Q-learning":
+    case "Q-Learning":
         agent = learning_algorithms.Q_Learning(env, 0.1, 0.99, 0.1)
     case "SARSA":
         agent = learning_algorithms.SARSA(env, 0.1, 0.99, 0.1)

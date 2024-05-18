@@ -3,7 +3,11 @@
 # Arz
 # 2024 MAY 14 (TUE)
 
-"""Q-learning agent for maze."""
+"""
+agent learning algorithms for maze.
+    - Q-Learning
+    - SARSA
+"""
 
 # reference:
 #
