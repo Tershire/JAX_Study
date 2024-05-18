@@ -12,7 +12,7 @@
 import numpy as np
 import maze_environment
 import learning_algorithms
-from enum import Enum
+import matplotlib.pyplot as plt
 
 
 # environment setting
@@ -34,7 +34,7 @@ print("training complete.")
 print(agent.q_table)
 
 arrows = {0: '←', 1: '↓', 2: '→', 3: '↑'}
-def render_greedy_action_per_state(env, agent):
+def display_greedy_action_per_state(env, agent):
     grid = np.full(env.grid_size, '')
     for i in range(env.grid_size[0]):
         for j in range(env.grid_size[1]):
@@ -48,4 +48,21 @@ def render_greedy_action_per_state(env, agent):
 
     print(grid)
 
-render_greedy_action_per_state(env, agent)
+display_greedy_action_per_state(env, agent)
+
+def compute_average_cumulative_rewards(cumulative_rewards, M=10):
+    average_cumulative_rewards = np.array([])
+    for i in range(M, len(agent.cumulative_rewards) + 1):
+        average_cumulative_reward = np.mean(agent.cumulative_rewards[i - M:i])
+        average_cumulative_rewards = np.append(average_cumulative_rewards, average_cumulative_reward)
+
+    return average_cumulative_rewards
+
+plt.plot(np.arange(1, len(agent.cumulative_rewards) + 1), agent.cumulative_rewards)
+M = 10
+plt.plot(np.arange(M, len(agent.cumulative_rewards) + 1),
+         compute_average_cumulative_rewards(agent.cumulative_rewards, M=10))
+plt.xlabel("Episode")
+plt.ylabel("Cumulative Reward")
+plt.grid()
+plt.show()

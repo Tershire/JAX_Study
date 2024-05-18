@@ -19,13 +19,20 @@ class Q_Learning:
         self.gamma = gamma  # discount
         self.epsilon = epsilon  # epsilon-greedy param
 
+        # result
+        self.cumulative_rewards = np.array([])
+
     def learn(self, max_num_episodes):
+        # result
+        self.cumulative_rewards = np.array([])
+
         for episode in range(max_num_episodes):
             state, _ = self.env.reset()
             done = False
 
             # result
-            # agent_positions = []
+            cumulative_reward = 0
+            # agent_positions = np.array([])
 
             while not done:
                 # select action
@@ -44,7 +51,11 @@ class Q_Learning:
                 state = state_tp1
 
                 # collect result
-                # agent_positions.append(self.env.agent_position)
+                cumulative_reward += reward_tp1
+                # np.append(agent_positions, self.env.agent_position)
+
+            # collect result
+            self.cumulative_rewards = np.append(self.cumulative_rewards, cumulative_reward)
 
             # show result
             # print("episode:", episode)
