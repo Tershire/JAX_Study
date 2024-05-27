@@ -32,48 +32,56 @@ class Q_Learning:
         self.gamma = gamma  # discount
         self.epsilon = epsilon  # epsilon-greedy param
 
-    def learn(self, max_num_episodes, subkey):
+    def learn(self, max_num_episodes):
+        # result
+        self.cumulative_rewards = np.array([])
+
         for episode in range(max_num_episodes):
-            self.run_episode(self.env, self.q_table, self.alpha, self.gamma, self.epsilon, subkey)
+            state, _ = self.env.reset()
+            done = False
 
-    def run_episode(self, env, q_table, alpha, gamma, epsilon, subkey):
-        state, _ = env.reset()
-        done = False
+            # result
+            cumulative_reward = 0
 
-        while not done:
-            state, q_table, done, subkey = self.run_step(state, env, q_table, done, alpha, gamma, epsilon, subkey)
+            while not done:
+                # select action
+                action = self.select_action(state)
 
-    @partial(jit, static_argnames=["self", "env", "alpha", "gamma", "epsilon"])
-    def run_step(self, state, env, q_table, done, alpha, gamma, epsilon, subkey):
-        _, *subkeys = jax.random.split(subkey, 3)
-        action = self.select_action(state, epsilon, subkeys[0], subkeys[1])
+                # take the action and receive state and reward at t + 1
+                state_tp1, reward_tp1, terminated, truncated, info = self.env.step(action)  # tp1: t + 1
+                done = terminated or truncated
 
-        state_tp1, reward_tp1, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
+                # update Q-table
+                q_table = self.update_q_table(self.q_table, state, action, state_tp1, reward_tp1)
+                self.q_table = q_table
 
+                # update state
+                state = state_tp1
+
+                # collect result
+                cumulative_reward += reward_tp1
+
+            # collect result
+            self.cumulative_rewards = np.append(self.cumulative_rewards, cumulative_reward)
+
+    # @partial(jit, static_argnames=["self"])
+    def update_q_table(self, q_table, state, action, state_tp1, reward_tp1):
+        print("(state, action):", state, action)
         q_value = q_table[state, action]
-        td_target = reward_tp1 + gamma * np.max(q_table[state_tp1])
-        q_table.at[state, action].set(q_value + alpha * (td_target - q_value))
+        print("q_table[state_tp1]:", q_table[state_tp1])
+        td_target = reward_tp1 + self.gamma * jnp.max(q_table[state_tp1])
+        print("td_target:", td_target)
+        print("q_value + self.alpha * (td_target - q_value):", q_value + self.alpha * (td_target - q_value))
+        q_table.at[state, action].set(q_value + self.alpha * (td_target - q_value))
+        print("q_table:", q_table)
 
-        state = state_tp1
+        return q_table
 
-        return state, q_table, done, subkey
-
-    def select_action(self, state, epsilon, subkey1, subkey2):
+    def select_action(self, state):
         """epsilon-greedy"""
-        action = lax.cond(jax.random.uniform(subkey1) < epsilon,
-                          self.select_random_action,
-                          self.select_greedy_action,
-                          state, subkey2)
-
-        return action
-
-    def select_random_action(self, state, subkey):
-        action = jax.random.choice(subkey, jnp.arange(self.env.action_space.n))
-
-        return action
-
-    def select_greedy_action(self, state, subkey):
-        action = jnp.argmax(self.q_table[state])
+        if np.random.rand() < self.epsilon:
+            action = self.env.action_space.sample()
+        else:
+            action = jnp.argmax(self.q_table[state])
 
         return action

@@ -37,13 +37,12 @@ match learning_algorithm:
         agent = learning_algorithms.SARSA(env, alpha, gamma, epsilon)
 
 # training
-max_num_episodes = 1000
+max_num_episodes = 3
 
 agent.learn(max_num_episodes)
 print("training complete.")
 
-key = jax.random.key(0)
-agent_jax.learn(max_num_episodes, key)
+agent_jax.learn(max_num_episodes)
 print("training complete.")
 
 # training result
