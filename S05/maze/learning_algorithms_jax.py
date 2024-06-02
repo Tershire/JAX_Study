@@ -20,7 +20,6 @@ JAX implemented.
 import numpy as np
 import jax
 import jax.numpy as jnp
-from jax import jit, lax
 from functools import partial
 
 
@@ -31,6 +30,9 @@ class Q_Learning:
         self.alpha = alpha  # learning rate
         self.gamma = gamma  # discount
         self.epsilon = epsilon  # epsilon-greedy param
+
+        # result
+        self.cumulative_rewards = np.array([])
 
     def learn(self, max_num_episodes):
         # result
@@ -64,16 +66,11 @@ class Q_Learning:
             # collect result
             self.cumulative_rewards = np.append(self.cumulative_rewards, cumulative_reward)
 
-    # @partial(jit, static_argnames=["self"])
+    @partial(jax.jit, static_argnames=["self"])
     def update_q_table(self, q_table, state, action, state_tp1, reward_tp1):
-        print("(state, action):", state, action)
         q_value = q_table[state, action]
-        print("q_table[state_tp1]:", q_table[state_tp1])
         td_target = reward_tp1 + self.gamma * jnp.max(q_table[state_tp1])
-        print("td_target:", td_target)
-        print("q_value + self.alpha * (td_target - q_value):", q_value + self.alpha * (td_target - q_value))
-        q_table.at[state, action].set(q_value + self.alpha * (td_target - q_value))
-        print("q_table:", q_table)
+        q_table = q_table.at[state, action].set(q_value + self.alpha * (td_target - q_value))
 
         return q_table
 
