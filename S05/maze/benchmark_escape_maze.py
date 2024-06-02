@@ -14,10 +14,12 @@ import maze_environment
 import learning_algorithms
 import learning_algorithms_jax
 import jax
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import time
 
+
+# check JAX status
+print(f"Jax backend: {jax.default_backend()}")
 
 # environment setting
 wall_positions = np.array([(1, 3), (1, 4), (2, 1), (3, 1), (3, 3), (4, 3)])
