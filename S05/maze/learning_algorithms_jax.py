@@ -23,6 +23,15 @@ import jax.numpy as jnp
 from functools import partial
 
 
+@jax.jit
+def update_q_table(q_table, state, action, state_tp1, reward_tp1, alpha, gamma):
+    q_value = q_table[state, action]
+    td_target = reward_tp1 + gamma * jnp.max(q_table[state_tp1])
+    q_table = q_table.at[state, action].set(q_value + alpha * (td_target - q_value))
+
+    return q_table
+
+
 class Q_Learning:
     def __init__(self, env, alpha=0.1, gamma=0.99, epsilon=0.1):
         self.env = env
@@ -54,7 +63,8 @@ class Q_Learning:
                 done = terminated or truncated
 
                 # update Q-table
-                q_table = self.update_q_table(self.q_table, state, action, state_tp1, reward_tp1)
+                q_table = update_q_table(self.q_table, state, action, state_tp1, reward_tp1,
+                                         self.alpha, self.gamma)
                 self.q_table = q_table
 
                 # update state
@@ -66,13 +76,6 @@ class Q_Learning:
             # collect result
             self.cumulative_rewards = np.append(self.cumulative_rewards, cumulative_reward)
 
-    @partial(jax.jit, static_argnames=["self"])
-    def update_q_table(self, q_table, state, action, state_tp1, reward_tp1):
-        q_value = q_table[state, action]
-        td_target = reward_tp1 + self.gamma * jnp.max(q_table[state_tp1])
-        q_table = q_table.at[state, action].set(q_value + self.alpha * (td_target - q_value))
-
-        return q_table
 
     def select_action(self, state):
         """epsilon-greedy"""

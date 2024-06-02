@@ -97,11 +97,7 @@ def benchmark_runtime(function, k=1, params: list=[{}]):
     print(f">>> average {average:.5f} [ms]")
 
 
-t1 = benchmark_runtime(agent.learn, k=1,
-                       params=[{"max_num_episodes": max_num_episodes}])
-print("t1: ", t1)
+benchmark_runtime(agent.learn, k=1, params=[{"max_num_episodes": max_num_episodes}])
 
 agent_jax.learn(1)  # warm-up
-t2 = benchmark_runtime(agent_jax.learn, k=1,
-                       params=[{"max_num_episodes": max_num_episodes}])
-print("t2: ", t2)
+t2 = benchmark_runtime(agent_jax.learn, k=1, params=[{"max_num_episodes": max_num_episodes}])
