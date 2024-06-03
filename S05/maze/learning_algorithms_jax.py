@@ -4,7 +4,6 @@
 # 2024 MAY 19 (SUN)
 
 """
-⚠️ work in progress
 agent learning algorithms for maze.
 JAX implemented.
     - Q-Learning
