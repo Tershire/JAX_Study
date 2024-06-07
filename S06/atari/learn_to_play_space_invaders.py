@@ -6,6 +6,7 @@
 """
 train agent to play <space invaders>
 """
+import random
 
 # reference:
 # https://flax.readthedocs.io/en/latest/nnx/mnist_tutorial.html
@@ -19,7 +20,7 @@ import jax.numpy as jnp
 import cv2 as cv
 import itertools
 from flax import nnx
-
+from collections import namedtuple, deque
 
 # load environment
 env = gymnasium.make("ALE/SpaceInvaders-v5", obs_type="rgb", render_mode="rgb_array")
@@ -53,6 +54,7 @@ class Q_Estimator(nnx.Module):
     """
     action value estimator.
     """
+
     def __init__(self, num_frames: int, num_actions: int, rngs: nnx.Rngs):
         self.conv1 = nnx.Conv(
             in_features=num_frames,
@@ -86,6 +88,25 @@ class Q_Estimator(nnx.Module):
         return x
 
 
+# replay memory
+Experience = namedtuple("experience", ("s_t", "a_t", "r_tp1", "s_tp1"))
+
+
+class Replay_Memory():
+    def __init__(self, capacity):
+        self.storage = deque([], maxlen=capacity)
+
+    def push(self, *args):
+        self.storage.append(Experience(*args))
+
+    def sample(self, batch_size):
+        return random.sample(self.storage, batch_size)
+
+    def __len__(self):
+        return len(self.storage)
+
+
+# action selection method
 def select_action(episode, max_num_episodes):
     """
     epsilon-greedy with decaying epsilon.
@@ -106,7 +127,7 @@ max_num_episodes = 10
 num_frames = 4
 num_actions = env.action_space.n
 Q = Q_Estimator(num_frames, num_actions)
-
+replay_memory = Replay_Memory(1E4)
 
 # training
 for episode in range(max_num_episodes):
@@ -120,4 +141,3 @@ for episode in range(max_num_episodes):
         # preprocess
         phi_tp1 = preprocess(s_t, s_tp1)
         pass
-
