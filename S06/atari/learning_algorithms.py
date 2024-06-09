@@ -10,19 +10,21 @@ JAX implemented.
 """
 
 # reference:
+# https://flax.readthedocs.io/en/latest/nnx/nnx_basics.html
 # https://flax.readthedocs.io/en/latest/nnx/mnist_tutorial.html
+# https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/training/optimizer.html
 # https://github.com/davidreiman/pytorch-atari-dqn/blob/master/dqn.ipynb
 # https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/dqn_atari_jax.py
 # https://flax.readthedocs.io/en/latest/nnx/transforms.html
 # https://github.com/Tershire/JAX_Study/blob/master/S04/S04P01_flax_basics.ipynb
 
 
-import numpy as np
+import cv2 as cv
 import random
+import numpy as np
 import jax
 import jax.numpy as jnp
-import cv2 as cv
-import itertools
+import optax
 from flax import nnx
 from collections import namedtuple, deque
 
@@ -40,6 +42,7 @@ Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "sta
 
 class DQN:
     def __init__(self, env, alpha, gamma, memory_capacity, rngs):
+        self.t = 0  # time step
         self.env = env
         self.alpha = alpha  # learning rate
         self.gamma = gamma  # forgetting factor
@@ -50,7 +53,11 @@ class DQN:
         self.replay_memory = self.Replay_Memory(self.memory_capacity)
         self.image_history = deque([], maxlen=self.image_history_length)
         self.q_estimator = self.Q_Estimator(self.image_history_length, self.num_actions, rngs)
+        self.optimizer = nnx.Optimizer(self.q_estimator,
+                                       optax.rmsprop(learning_rate=alpha, momentum=0.95))
+        self.optimizer_update_interval = 4
         self.target_q_estimator = self.q_estimator
+        self.target_q_estimator_update_interval = 1E3
 
     def train(self, max_num_episodes):
         for episode in range(max_num_episodes):
@@ -74,7 +81,7 @@ class DQN:
             state_t = np.array(self.image_history)
             state_t = np.moveaxis(state_t, [0], [2])
 
-            for t in itertools.count():
+            while True:
                 # {select & do} action
                 action_t = self.select_action(state_t, episode, max_num_episodes)
                 frame_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
@@ -93,29 +100,24 @@ class DQN:
                 experience = Experience(state_t, action_t, reward_tp1, state_tp1)
                 self.replay_memory.remember(experience)
 
-                # [*] test [*]
-                # show_state(state_tp1)
-
-                # retrospect
-                if len(self.replay_memory) >= self.minibatch_size:
+                # retrospect and update Q
+                if len(self.replay_memory) >= self.minibatch_size and self.t % self.optimizer_update_interval == 0:
                     experiences = self.replay_memory.retrieve_random_experiences(self.minibatch_size)
                     state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch = \
                         map(jnp.array, Experience(*zip(*experiences)))
 
-                    # [*] test [*]
-                    # print(type(action_j_minibatch))
-                    # frame = cv.cvtColor(frame_t, cv.COLOR_BGR2RGB)
-                    # cv.imshow("frame", frame)
-                    image = cv.resize(image_tp1, None, fx=5, fy=5, interpolation=cv.INTER_LINEAR)
-                    cv.imshow("image", image)
-                    cv.waitKey(0)
-
                     # update Q
                     self.update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
-                                  self.q_estimator, self.target_q_estimator, self.alpha, self.gamma)
+                                  self.q_estimator, self.target_q_estimator, self.optimizer, self.gamma)
+
+                # update target Q-estimator
+                if self.t % self.target_q_estimator_update_interval == 0:
+                    params = nnx.state(self.q_estimator, nnx.Param)
+                    nnx.update(self.target_q_estimator, params)
 
                 # step forward
                 state_t = state_tp1
+                self.t += 1
 
     def preprocess(self, frame1, frame2=None):
         """
@@ -143,7 +145,7 @@ class DQN:
         epsilon-greedy with decaying epsilon.
         x: state history
         """
-        epsilon = np.exp(-episode / max_num_episodes)
+        epsilon = 0.1 + (1 - 0.1) * np.exp(-episode / max_num_episodes)
         if np.random.rand() < epsilon:
             action = self.env.action_space.sample()
         else:
@@ -156,7 +158,7 @@ class DQN:
     @staticmethod
     @nnx.jit
     def update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
-                 q_estimator, target_q_estimator, alpha, gamma):
+                 q_estimator, target_q_estimator, optimizer, gamma):
         """
 
         """
@@ -167,12 +169,10 @@ class DQN:
         def loss_function(model):
             q_values = model(state_j_minibatch)  # (minibatch_size, num_actions)
             q_values = q_values[jnp.arange(q_values.shape[0]), action_j_minibatch.squeeze()]  # (minibatch_size,) (?)
-            return jnp.mean((target_q_values - q_values) ** 2)
+            return ((target_q_values - q_values) ** 2).mean()
 
         grads = nnx.grad(loss_function)(q_estimator)
-        params = nnx.state(q_estimator, nnx.Param)
-        params = jax.tree_util.tree_map(lambda p, g: p - alpha * g, params, grads)
-        nnx.update(q_estimator, params)
+        optimizer.update(grads)
 
     class Q_Estimator(nnx.Module):
         """
