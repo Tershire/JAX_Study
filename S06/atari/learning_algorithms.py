@@ -43,11 +43,11 @@ Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "sta
 
 
 class DQN:
-    def __init__(self, env, alpha, gamma, memory_capacity, rngs):
+    def __init__(self, env, alpha, memory_capacity, rngs):
         self.t = 0  # time step
         self.env = env
         self.alpha = alpha  # learning rate
-        self.gamma = gamma  # forgetting factor
+        self.gamma = 0.99  # discount factor
         self.minibatch_size = 32
         self.image_history_length = 4
         self.num_actions = env.action_space.n

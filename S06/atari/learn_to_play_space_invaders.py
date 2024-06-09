@@ -21,13 +21,12 @@ from flax import nnx
 env = gymnasium.make("ALE/SpaceInvaders-v5", obs_type="rgb", render_mode="rgb_array")
 
 # load agent
-memory_capacity = int(1E4)
 alpha = 2.5E-4  # learning rate
-gamma = 0.99
-agent = DQN(env, alpha, gamma, memory_capacity, rngs=nnx.Rngs(0))
+memory_capacity = int(1E4)  # replay memory capacity
+agent = DQN(env, alpha, memory_capacity, rngs=nnx.Rngs(0))
 
 # training setting
-max_num_episodes = 1200
+max_num_episodes = 10
 
 # training
 agent.train(max_num_episodes, save_model=True)
@@ -42,7 +41,7 @@ def compute_average_cumulative_rewards(agent, M=10):
     return average_cumulative_rewards
 
 plt.plot(np.arange(1, len(agent.cumulative_rewards) + 1), agent.cumulative_rewards)
-M = 40
+M = 5
 plt.plot(np.arange(M, len(agent.cumulative_rewards) + 1),
          compute_average_cumulative_rewards(agent, M))
 plt.xlabel("Episode")
