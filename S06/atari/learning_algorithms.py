@@ -25,8 +25,10 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import optax
+import flax
 from flax import nnx
 from collections import namedtuple, deque
+from pathlib import Path
 
 
 # debugging
@@ -62,7 +64,7 @@ class DQN:
         # result
         self.cumulative_rewards = []
 
-    def train(self, max_num_episodes):
+    def train(self, max_num_episodes, save_model=False):
         for episode in range(max_num_episodes):
             print("episode:", episode)
 
@@ -132,6 +134,15 @@ class DQN:
 
             # result
             self.cumulative_rewards.append(cumulative_reward)
+
+        # save model
+        if save_model:
+            model_path = Path("/home/tershire/Documents/academics/extracurricular_learning/jax_study_models/atari.arz_model")
+            _, params, = nnx.split(self.q_estimator, nnx.Param)
+            nnx.display(params)
+            # with open(model_path, "wb") as f:
+            #     f.write(flax.serialization.to_bytes(params))
+            # print(f"model saved to {model_path}.")
 
     def preprocess(self, frame1, frame2=None):
         """

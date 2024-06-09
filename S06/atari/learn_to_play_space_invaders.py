@@ -27,10 +27,10 @@ gamma = 0.99
 agent = DQN(env, alpha, gamma, memory_capacity, rngs=nnx.Rngs(0))
 
 # training setting
-max_num_episodes = 200
+max_num_episodes = 1200
 
 # training
-agent.train(max_num_episodes)
+agent.train(max_num_episodes, save_model=True)
 
 # training result
 def compute_average_cumulative_rewards(agent, M=10):
@@ -42,7 +42,7 @@ def compute_average_cumulative_rewards(agent, M=10):
     return average_cumulative_rewards
 
 plt.plot(np.arange(1, len(agent.cumulative_rewards) + 1), agent.cumulative_rewards)
-M = 10
+M = 40
 plt.plot(np.arange(M, len(agent.cumulative_rewards) + 1),
          compute_average_cumulative_rewards(agent, M))
 plt.xlabel("Episode")
