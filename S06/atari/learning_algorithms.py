@@ -59,8 +59,13 @@ class DQN:
         self.target_q_estimator = self.q_estimator
         self.target_q_estimator_update_interval = 1E3
 
+        # result
+        self.cumulative_rewards = []
+
     def train(self, max_num_episodes):
         for episode in range(max_num_episodes):
+            print("episode:", episode)
+
             # reset world
             frame_t, _ = self.env.reset()
             image_t = self.preprocess(frame_t)
@@ -80,6 +85,9 @@ class DQN:
 
             state_t = np.array(self.image_history)
             state_t = np.moveaxis(state_t, [0], [2])
+
+            # result
+            cumulative_reward = 0
 
             while True:
                 # {select & do} action
@@ -118,6 +126,12 @@ class DQN:
                 # step forward
                 state_t = state_tp1
                 self.t += 1
+
+                # result
+                cumulative_reward += reward_tp1
+
+            # result
+            self.cumulative_rewards.append(cumulative_reward)
 
     def preprocess(self, frame1, frame2=None):
         """
