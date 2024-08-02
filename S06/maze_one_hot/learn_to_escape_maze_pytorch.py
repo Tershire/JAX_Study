@@ -15,8 +15,11 @@ import maze_environment
 import numpy as np
 import matplotlib.pyplot as plt
 from learning_algorithms_pytorch import DQN
-from flax import nnx
 
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
+print(device)
 
 # load environment
 wall_positions = np.array([(1, 3), (1, 4), (2, 1), (3, 1), (3, 3), (4, 3)])
@@ -30,7 +33,7 @@ memory_capacity = int(1E4)  # replay memory capacity
 agent = DQN(env, alpha, memory_capacity)
 
 # training setting
-max_num_episodes = 1000
+max_num_episodes = 1200
 
 # training
 agent.train(max_num_episodes, save_model=False)
@@ -40,10 +43,10 @@ def build_q_table(env, agent):
     q_table = np.zeros((env.observation_space.n, env.action_space.n))
     for state_id in range(q_table.shape[0]):
         state = agent.one_hot_encode(state_id)
-        state = torch.FloatTensor(state)
+        state = torch.FloatTensor(state).to(device)
         with torch.no_grad():
             q_value = agent.q_estimator(state)
-        q_table[state_id] = q_value
+        q_table[state_id] = q_value.cpu()
 
     return q_table
 

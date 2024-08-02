@@ -20,6 +20,10 @@ from collections import namedtuple, deque
 from pathlib import Path
 
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
+print(device)
+
 Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "state_tp1"))
 
 
@@ -35,11 +39,11 @@ class DQN:
         self.memory_capacity = memory_capacity
         self.replay_memory = self.Replay_Memory(self.memory_capacity)
 
-        self.q_estimator = self.Q_Estimator(self.num_observations, self.num_actions)
+        self.q_estimator = self.Q_Estimator(self.num_observations, self.num_actions).to(device)
         self.loss_function = nn.MSELoss()
         self.optimizer = torch.optim.RMSprop(self.q_estimator.parameters(), lr=learning_rate, momentum=0.95)
         self.optimizer_update_interval = 4
-        self.target_q_estimator = self.Q_Estimator(self.num_observations, self.num_actions)
+        self.target_q_estimator = self.Q_Estimator(self.num_observations, self.num_actions).to(device)
         self.target_q_estimator_update_interval = 20
 
         # result
@@ -52,7 +56,7 @@ class DQN:
             # reset world
             state_t, _ = self.env.reset()
             state_t = self.one_hot_encode(state_t)
-            state_t = torch.FloatTensor(state_t)
+            state_t = torch.FloatTensor(state_t).to(device)
 
             # result
             cumulative_reward = 0
@@ -62,7 +66,7 @@ class DQN:
                 action_t = self.select_action(state_t, episode, max_num_episodes)
                 state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
                 state_tp1 = self.one_hot_encode(state_tp1)
-                state_tp1 = torch.FloatTensor(state_tp1)
+                state_tp1 = torch.FloatTensor(state_tp1).to(device)
 
                 # remember experience
                 experience = Experience(state_t, action_t, reward_tp1, state_tp1)
@@ -73,10 +77,10 @@ class DQN:
                     experiences = self.replay_memory.retrieve_random_experiences(self.minibatch_size)
 
                     experience_minibatch = Experience(*zip(*experiences))
-                    state_j_minibatch = torch.stack(experience_minibatch.state_t)
-                    action_j_minibatch = torch.LongTensor(np.array(experience_minibatch.action_t)).unsqueeze(1)
-                    reward_jp1_minibatch = torch.FloatTensor(np.array(experience_minibatch.reward_tp1))
-                    state_jp1_minibatch = torch.stack(experience_minibatch.state_tp1)
+                    state_j_minibatch = torch.stack(experience_minibatch.state_t).to(device)
+                    action_j_minibatch = torch.LongTensor(np.array(experience_minibatch.action_t)).unsqueeze(1).to(device)
+                    reward_jp1_minibatch = torch.FloatTensor(np.array(experience_minibatch.reward_tp1)).to(device)
+                    state_jp1_minibatch = torch.stack(experience_minibatch.state_tp1).to(device)
 
                     # update Q
                     self.update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
