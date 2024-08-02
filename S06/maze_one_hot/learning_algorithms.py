@@ -1,7 +1,7 @@
 # learning_algorithms.py
 
 # Arz
-# 2024 JUN 15 (MON)
+# 2024 AUG 02 (FRI)
 
 """
 agent learning algorithms.
@@ -12,7 +12,7 @@ JAX implemented.
 # reference:
 
 
-import cv2 as cv
+# import cv2 as cv
 import random
 import numpy as np
 import jax
@@ -36,8 +36,8 @@ class DQN:
         self.gamma = 0.99  # discount factor
         self.minibatch_size = 32
         self.num_actions = env.action_space.n
-        # self.num_observations = env.observation_space.n  # wrong. definition confusion.
-        self.num_observations = 1  # state as int
+        self.num_observations = env.observation_space.n  # wrong. definition confusion.
+        # self.num_observations = 1  # state as int
         self.memory_capacity = memory_capacity
         self.replay_memory = self.Replay_Memory(self.memory_capacity)
         self.q_estimator = self.Q_Estimator(self.num_observations, self.num_actions, rngs)
@@ -115,10 +115,10 @@ class DQN:
         if np.random.rand() < epsilon:
             action = self.env.action_space.sample()
         else:
-            with torch.no_grad():
-                state = np.expand_dims(state, 0)
-                q_values = self.q_estimator(state)
-                action = np.argmax(q_values)
+            state = np.expand_dims(state, 0)
+            encoded_state = self.one_hot_encode(state)
+            q_values = self.q_estimator(encoded_state)
+            action = np.argmax(q_values)
 
         return np.array(action)  # sometimes gets jax array time if without np. weird.
 
@@ -127,9 +127,8 @@ class DQN:
     def update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
                  q_estimator, target_q_estimator, optimizer, gamma):
 
-        with torch.no_grad():
-            target_q_values = reward_jp1_minibatch + \
-                              gamma * jnp.max(target_q_estimator(state_jp1_minibatch))  # (minibatch_size,)
+        target_q_values = reward_jp1_minibatch + \
+                          gamma * jnp.max(target_q_estimator(state_jp1_minibatch))  # (minibatch_size,)
 
         # optimize Q-estimator
         def loss_function(model):
@@ -139,6 +138,11 @@ class DQN:
 
         grads = nnx.grad(loss_function)(q_estimator)
         optimizer.update(grads)
+
+    def one_hot_encode(self, state):
+        encoded_state = jnp.zeros(self.num_observations)
+        encoded_state[state] = 1
+        return encoded_state
 
     class Q_Estimator(nnx.Module):
         """

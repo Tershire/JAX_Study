@@ -32,7 +32,7 @@ agent = DQN(env, alpha, memory_capacity, rngs=nnx.Rngs(0))
 max_num_episodes = 10
 
 # training
-agent.train(max_num_episodes, save_model=True)
+agent.train(max_num_episodes, save_model=False)
 
 # training result
 def build_q_table(env, agent):

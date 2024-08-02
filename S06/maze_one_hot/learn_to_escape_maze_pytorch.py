@@ -1,11 +1,12 @@
-# learn_to_escape_maze.py
+# learn_to_escape_maze_pytorch.py
 
 # Arz
-# 2024 JUN 16 (SUN)
+# 2024 AUG 02 (FRI)
 
 """
 train agent to escape maze.
 """
+import torch
 
 # reference:
 
@@ -13,7 +14,7 @@ train agent to escape maze.
 import maze_environment
 import numpy as np
 import matplotlib.pyplot as plt
-from learning_algorithms import DQN
+from learning_algorithms_pytorch import DQN
 from flax import nnx
 
 
@@ -26,20 +27,23 @@ print(env.render("cell_name"))
 # load agent
 alpha = 1E-4  # learning rate
 memory_capacity = int(1E4)  # replay memory capacity
-agent = DQN(env, alpha, memory_capacity, rngs=nnx.Rngs(0))
+agent = DQN(env, alpha, memory_capacity)
 
 # training setting
-max_num_episodes = 10
+max_num_episodes = 1000
 
 # training
-agent.train(max_num_episodes, save_model=True)
+agent.train(max_num_episodes, save_model=False)
 
 # training result
 def build_q_table(env, agent):
     q_table = np.zeros((env.observation_space.n, env.action_space.n))
-    for state in range(q_table.shape[0]):
-        q_value = agent.q_estimator(np.int64(state))
-        q_table[state] = q_value
+    for state_id in range(q_table.shape[0]):
+        state = agent.one_hot_encode(state_id)
+        state = torch.FloatTensor(state)
+        with torch.no_grad():
+            q_value = agent.q_estimator(state)
+        q_table[state_id] = q_value
 
     return q_table
 

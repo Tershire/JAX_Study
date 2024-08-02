@@ -49,6 +49,9 @@ def preprocess(s_t, s_tp1):
     phi_tp1 = phi_tp1[13+7:97+7, :]
     print(phi_tp1.shape)
 
+    # resize: for visualization
+    phi_tp1 = cv.resize(phi_tp1, None, fx=4, fy=4, interpolation=cv.INTER_LINEAR)
+
     cv.imshow("phi_tp1", phi_tp1)
     cv.waitKey(0)
 
