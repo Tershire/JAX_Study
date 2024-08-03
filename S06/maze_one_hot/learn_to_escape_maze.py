@@ -24,22 +24,23 @@ env = maze_environment.Maze((5, 5), wall_positions)
 print(env.render("cell_name"))
 
 # load agent
-alpha = 1E-4  # learning rate
+learning_rate = 1E-4  # learning rate
 memory_capacity = int(1E4)  # replay memory capacity
-agent = DQN(env, alpha, memory_capacity, rngs=nnx.Rngs(0))
+agent = DQN(env, learning_rate, memory_capacity, rngs=nnx.Rngs(0))
 
 # training setting
-max_num_episodes = 10
+max_num_episodes = 3
 
 # training
-agent.train(max_num_episodes, save_model=False)
+agent.train(max_num_episodes, save_model=False, use_pretrained=True)
 
 # training result
 def build_q_table(env, agent):
     q_table = np.zeros((env.observation_space.n, env.action_space.n))
-    for state in range(q_table.shape[0]):
-        q_value = agent.q_estimator(np.int64(state))
-        q_table[state] = q_value
+    for state_id in range(q_table.shape[0]):
+        state = agent.one_hot_encode(state_id)
+        q_value = agent.q_estimator(state)
+        q_table[state_id] = q_value
 
     return q_table
 

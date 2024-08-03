@@ -12,14 +12,14 @@ JAX implemented.
 # reference:
 
 
-# import cv2 as cv
 import random
 import numpy as np
 import jax
 import jax.numpy as jnp
 import optax
 import flax
-import torch
+# import orbax.checkpoint
+# from flax.training import orbax_utils
 from flax import nnx
 from collections import namedtuple, deque
 from pathlib import Path
@@ -29,33 +29,55 @@ Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "sta
 
 
 class DQN:
-    def __init__(self, env, alpha, memory_capacity, rngs):
+    def __init__(self, env, learning_rate, memory_capacity, rngs):
         self.t = 0  # time step
         self.env = env
-        self.alpha = alpha  # learning rate
+        self.learning_rate = learning_rate  # learning rate
         self.gamma = 0.99  # discount factor
         self.minibatch_size = 32
         self.num_actions = env.action_space.n
-        self.num_observations = env.observation_space.n  # wrong. definition confusion.
-        # self.num_observations = 1  # state as int
+        self.num_observations = env.observation_space.n
         self.memory_capacity = memory_capacity
         self.replay_memory = self.Replay_Memory(self.memory_capacity)
+
         self.q_estimator = self.Q_Estimator(self.num_observations, self.num_actions, rngs)
         self.optimizer = nnx.Optimizer(self.q_estimator,
-                                       optax.rmsprop(learning_rate=alpha, momentum=0.95))
+                                       optax.rmsprop(learning_rate=learning_rate, momentum=0.95))
         self.optimizer_update_interval = 4
-        self.target_q_estimator = self.q_estimator
-        self.target_q_estimator_update_interval = 2
+        self.target_q_estimator = self.Q_Estimator(self.num_observations, self.num_actions, rngs)
+        self.target_q_estimator_update_interval = 20
 
         # result
         self.cumulative_rewards = []
 
-    def train(self, max_num_episodes, save_model=False):
+    def train(self, max_num_episodes, save_model=False, use_pretrained=False):
+        if use_pretrained:
+            def load_pytree(filepath, tree_structure):
+                with open(filepath, 'rb') as f:
+                    flat_state = f.read()
+                return flax.serialization.from_bytes(tree_structure, flat_state)
+
+            _, state = nnx.split(self.q_estimator)
+            # print(state, type(state))
+            flat_state, tree_structure = jax.tree_util.tree_flatten(state)
+
+            model_path = Path("./model/maze.arz_model")
+            flat_state = load_pytree(model_path, tree_structure)
+            # print(flat_state, type(flat_state))
+
+            # restore model
+            state = jax.tree_util.tree_unflatten(tree_structure, flat_state.values())
+            print(state, type(state))
+
+            nnx.update(self.q_estimator, state)
+            nnx.update(self.target_q_estimator, state)
+
         for episode in range(max_num_episodes):
             print("episode:", episode)
 
             # reset world
             state_t, _ = self.env.reset()
+            state_t = self.one_hot_encode(state_t)
 
             # result
             cumulative_reward = 0
@@ -64,9 +86,7 @@ class DQN:
                 # {select & do} action
                 action_t = self.select_action(state_t, episode, max_num_episodes)
                 state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
-                done = terminated or truncated
-                if done:
-                    break
+                state_tp1 = self.one_hot_encode(state_tp1)
 
                 # remember experience
                 experience = Experience(state_t, action_t, reward_tp1, state_tp1)
@@ -94,33 +114,44 @@ class DQN:
                 # result
                 cumulative_reward += reward_tp1
 
+                # termination
+                done = terminated or truncated
+                if done:
+                    break
+
             # result
             self.cumulative_rewards.append(cumulative_reward)
 
         # save model
         if save_model:
-            model_path = Path("/home/tershire/Documents/academics/extracurricular_learning/jax_study_models/cartpole.arz_model")
-            _, params, = nnx.split(self.q_estimator, nnx.Param)
-            # nnx.display(params)
-            # with open(model_path, "wb") as f:
-            #     f.write(flax.serialization.to_bytes(params))
-            # print(f"model saved to {model_path}.")
+            model_path = Path("./model/maze.arz_model")
+
+            # _, params, = nnx.split(self.q_estimator, nnx.Param)
+            graphdef, state, = nnx.split(self.q_estimator)
+
+            def save_pytree(pytree, file_path):
+                with open(file_path, 'wb') as f:
+                    f.write(flax.serialization.to_bytes(pytree))
+
+            flat_state, tree_structure = jax.tree_util.tree_flatten(state)
+            save_pytree(flat_state, model_path)
+            print(f"model saved to {model_path}.")
+
+            # nnx.display(self.q_estimator)
 
     def select_action(self, state, episode, max_num_episodes):
         """
         epsilon-greedy with decaying epsilon.
         x: state history
         """
-        epsilon = 0.1 + (1 - 0.1) * np.exp(-episode / max_num_episodes)
+        epsilon = 0.1 + (1 - 0.1) * np.exp(-episode / (max_num_episodes * 0.1))
         if np.random.rand() < epsilon:
             action = self.env.action_space.sample()
         else:
-            state = np.expand_dims(state, 0)
-            encoded_state = self.one_hot_encode(state)
-            q_values = self.q_estimator(encoded_state)
+            q_values = self.q_estimator(state)
             action = np.argmax(q_values)
 
-        return np.array(action)  # sometimes gets jax array time if without np. weird.
+        return np.array(action)
 
     @staticmethod
     @nnx.jit
@@ -128,20 +159,20 @@ class DQN:
                  q_estimator, target_q_estimator, optimizer, gamma):
 
         target_q_values = reward_jp1_minibatch + \
-                          gamma * jnp.max(target_q_estimator(state_jp1_minibatch))  # (minibatch_size,)
+                          gamma * jnp.max(target_q_estimator(state_jp1_minibatch), axis=1)  # (minibatch_size,)
 
         # optimize Q-estimator
         def loss_function(model):
             q_values = model(state_j_minibatch)  # (minibatch_size, num_actions)
-            q_values = q_values[jnp.arange(q_values.shape[0]), action_j_minibatch.squeeze()]  # (minibatch_size,) (?)
+            q_values = q_values[jnp.arange(q_values.shape[0]), action_j_minibatch.squeeze()]  # (minibatch_size,)
             return ((target_q_values - q_values) ** 2).mean()
 
-        grads = nnx.grad(loss_function)(q_estimator)
+        loss, grads = nnx.value_and_grad(loss_function)(q_estimator)
         optimizer.update(grads)
 
     def one_hot_encode(self, state):
         encoded_state = jnp.zeros(self.num_observations)
-        encoded_state[state] = 1
+        encoded_state = encoded_state.at[state].set(1)
         return encoded_state
 
     class Q_Estimator(nnx.Module):
@@ -150,8 +181,6 @@ class DQN:
         """
 
         def __init__(self, num_observations: int, num_actions: int, rngs: nnx.Rngs):
-            self.num_observations = num_observations
-
             self.linear1 = nnx.Linear(
                 in_features=num_observations, out_features=128,
                 rngs=rngs)
@@ -163,7 +192,6 @@ class DQN:
                 rngs=rngs)
 
         def __call__(self, x):
-            x = x.reshape(-1, 1)
             x = nnx.relu(self.linear1(x))  # (minibatch_size, num_observations) -> (minibatch_size, 128)
             x = nnx.relu(self.linear2(x))  # (minibatch_size, 128) -> (minibatch_size, 64)
             x = self.linear3(x)  # (minibatch_size, 64) -> (minibatch_size, num_actions)
