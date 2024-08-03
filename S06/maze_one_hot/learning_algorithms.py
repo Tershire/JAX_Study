@@ -18,11 +18,10 @@ import jax
 import jax.numpy as jnp
 import optax
 import flax
-# import orbax.checkpoint
-# from flax.training import orbax_utils
 from flax import nnx
 from collections import namedtuple, deque
-from pathlib import Path
+
+import maze_environment
 
 
 Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "state_tp1"))
@@ -50,28 +49,7 @@ class DQN:
         # result
         self.cumulative_rewards = []
 
-    def train(self, max_num_episodes, save_model=False, use_pretrained=False):
-        if use_pretrained:
-            def load_pytree(filepath, tree_structure):
-                with open(filepath, 'rb') as f:
-                    flat_state = f.read()
-                return flax.serialization.from_bytes(tree_structure, flat_state)
-
-            _, state = nnx.split(self.q_estimator)
-            # print(state, type(state))
-            flat_state, tree_structure = jax.tree_util.tree_flatten(state)
-
-            model_path = Path("./model/maze.arz_model")
-            flat_state = load_pytree(model_path, tree_structure)
-            # print(flat_state, type(flat_state))
-
-            # restore model
-            state = jax.tree_util.tree_unflatten(tree_structure, flat_state.values())
-            print(state, type(state))
-
-            nnx.update(self.q_estimator, state)
-            nnx.update(self.target_q_estimator, state)
-
+    def train(self, max_num_episodes):
         for episode in range(max_num_episodes):
             print("episode:", episode)
 
@@ -122,23 +100,6 @@ class DQN:
             # result
             self.cumulative_rewards.append(cumulative_reward)
 
-        # save model
-        if save_model:
-            model_path = Path("./model/maze.arz_model")
-
-            # _, params, = nnx.split(self.q_estimator, nnx.Param)
-            graphdef, state, = nnx.split(self.q_estimator)
-
-            def save_pytree(pytree, file_path):
-                with open(file_path, 'wb') as f:
-                    f.write(flax.serialization.to_bytes(pytree))
-
-            flat_state, tree_structure = jax.tree_util.tree_flatten(state)
-            save_pytree(flat_state, model_path)
-            print(f"model saved to {model_path}.")
-
-            # nnx.display(self.q_estimator)
-
     def select_action(self, state, episode, max_num_episodes):
         """
         epsilon-greedy with decaying epsilon.
@@ -174,6 +135,74 @@ class DQN:
         encoded_state = jnp.zeros(self.num_observations)
         encoded_state = encoded_state.at[state].set(1)
         return encoded_state
+
+    def test(self, model_path):
+        state = self.load_model(model_path)
+
+        nnx.update(self.q_estimator, state)
+        nnx.update(self.target_q_estimator, state)
+
+        # result
+        agent_positions = []
+        actions = []
+
+        episode = 0
+        while self.env.grid[self.env.agent_position[0], self.env.agent_position[1]] != maze_environment.Cell.GOAL:
+            print("episode:", episode)
+
+            # result
+            agent_positions = []
+
+            # reset world
+            state_t, _ = self.env.reset()
+            state_t = self.one_hot_encode(state_t)
+
+            while True:
+                # {select & do} action
+                action_t = np.argmax(self.q_estimator(state_t))
+                state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
+                state_tp1 = self.one_hot_encode(state_tp1)
+
+                # step forward
+                state_t = state_tp1
+
+                # result
+                agent_positions.append((self.env.agent_position[0], self.env.agent_position[1]))
+                actions.append(int(action_t))
+
+                # termination
+                done = terminated or truncated
+                if done:
+                    break
+
+            episode += 1
+
+        return agent_positions, actions
+
+    def save_model(self, model_path):
+        _, state, = nnx.split(self.q_estimator)
+
+        def save_pytree(pytree, file_path):
+            with open(file_path, 'wb') as f:
+                f.write(flax.serialization.to_bytes(pytree))
+
+        flat_state, _ = jax.tree_util.tree_flatten(state)
+        save_pytree(flat_state, model_path)
+        print(f"model saved to {model_path}.")
+
+    def load_model(self, model_path):
+        def load_pytree(filepath, tree_structure):
+            with open(filepath, 'rb') as f:
+                flat_state = f.read()
+            return flax.serialization.from_bytes(tree_structure, flat_state)
+
+        _, state = nnx.split(self.q_estimator)
+        _, tree_structure = jax.tree_util.tree_flatten(state)
+        flat_state = load_pytree(model_path, tree_structure)
+
+        # restore model
+        state = jax.tree_util.tree_unflatten(tree_structure, flat_state.values())
+        return state
 
     class Q_Estimator(nnx.Module):
         """

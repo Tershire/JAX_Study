@@ -17,7 +17,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 from collections import namedtuple, deque
-from pathlib import Path
+
+import maze_environment
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -49,7 +50,7 @@ class DQN:
         # result
         self.cumulative_rewards = []
 
-    def train(self, max_num_episodes, save_model=False):
+    def train(self, max_num_episodes):
         for episode in range(max_num_episodes):
             print("episode:", episode)
 
@@ -106,12 +107,6 @@ class DQN:
             # result
             self.cumulative_rewards.append(cumulative_reward)
 
-        # save model
-        if save_model:
-            model_path = Path("./model/maze_one_hot.pt")
-            torch.save(self.q_estimator.state_dict(), model_path)
-            print(f"model saved to {model_path}.")
-
     def select_action(self, state, episode, max_num_episodes):
         """
         epsilon-greedy with decaying epsilon.
@@ -149,6 +144,53 @@ class DQN:
         encoded_state = np.zeros(self.num_observations)
         encoded_state[state] = 1
         return encoded_state
+
+    def test(self, model_path):
+        self.q_estimator.load_state_dict(torch.load(model_path))
+
+        # result
+        agent_positions = []
+
+        episode = 0
+        while self.env.grid[self.env.agent_position[0], self.env.agent_position[1]] != maze_environment.Cell.GOAL:
+            print("episode:", episode)
+
+            # result
+            agent_positions = []
+            actions = []
+
+            # reset world
+            state_t, _ = self.env.reset()
+            state_t = self.one_hot_encode(state_t)
+            state_t = torch.FloatTensor(state_t).to(device)
+
+            while True:
+                # {select & do} action
+                with torch.no_grad():
+                    action_t = torch.argmax(self.q_estimator(state_t)).item()
+                state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
+                state_tp1 = self.one_hot_encode(state_tp1)
+                state_tp1 = torch.FloatTensor(state_tp1).to(device)
+
+                # step forward
+                state_t = state_tp1
+
+                # result
+                agent_positions.append((self.env.agent_position[0], self.env.agent_position[1]))
+                actions.append(action_t)
+
+                # termination
+                done = terminated or truncated
+                if done:
+                    break
+
+            episode += 1
+
+        return agent_positions, actions
+
+    def save_model(self, model_path):
+        torch.save(self.q_estimator.state_dict(), model_path)
+        print(f"model saved to {model_path}.")
 
     class Q_Estimator(nn.Module):
         """
