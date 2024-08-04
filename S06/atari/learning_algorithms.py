@@ -43,10 +43,10 @@ Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "sta
 
 
 class DQN:
-    def __init__(self, env, alpha, memory_capacity, rngs):
+    def __init__(self, env, learning_rate, memory_capacity, rngs):
         self.t = 0  # time step
         self.env = env
-        self.alpha = alpha  # learning rate
+        self.learning_rate = learning_rate  # learning rate
         self.gamma = 0.99  # discount factor
         self.minibatch_size = 32
         self.image_history_length = 4
@@ -56,15 +56,15 @@ class DQN:
         self.image_history = deque([], maxlen=self.image_history_length)
         self.q_estimator = self.Q_Estimator(self.image_history_length, self.num_actions, rngs)
         self.optimizer = nnx.Optimizer(self.q_estimator,
-                                       optax.rmsprop(learning_rate=alpha, momentum=0.95))
+                                       optax.rmsprop(learning_rate=learning_rate, momentum=0.95))
         self.optimizer_update_interval = 4
-        self.target_q_estimator = self.q_estimator
-        self.target_q_estimator_update_interval = 1E3
+        self.target_q_estimator = self.Q_Estimator(self.image_history_length, self.num_actions, rngs)
+        self.target_q_estimator_update_interval = int(1E3)
 
         # result
         self.cumulative_rewards = []
 
-    def train(self, max_num_episodes, save_model=False):
+    def train(self, max_num_episodes):
         for episode in range(max_num_episodes):
             print("episode:", episode)
 
@@ -96,8 +96,6 @@ class DQN:
                 action_t = self.select_action(state_t, episode, max_num_episodes)
                 frame_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
                 done = terminated or truncated
-                if done:
-                    break
 
                 # preprocess and update image history
                 image_tp1 = self.preprocess(frame_t, frame_tp1)
@@ -132,17 +130,12 @@ class DQN:
                 # result
                 cumulative_reward += reward_tp1
 
+                # termination
+                if done:
+                    break
+
             # result
             self.cumulative_rewards.append(cumulative_reward)
-
-        # save model
-        if save_model:
-            model_path = Path("/home/tershire/Documents/academics/extracurricular_learning/jax_study_models/atari.arz_model")
-            _, params, = nnx.split(self.q_estimator, nnx.Param)
-            nnx.display(params)
-            # with open(model_path, "wb") as f:
-            #     f.write(flax.serialization.to_bytes(params))
-            # print(f"model saved to {model_path}.")
 
     def preprocess(self, frame1, frame2=None):
         """
@@ -184,11 +177,9 @@ class DQN:
     @nnx.jit
     def update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
                  q_estimator, target_q_estimator, optimizer, gamma):
-        """
 
-        """
         target_q_values = reward_jp1_minibatch + \
-                          gamma * jnp.max(target_q_estimator(state_jp1_minibatch))  # (minibatch_size,)
+                          gamma * jnp.max(target_q_estimator(state_jp1_minibatch), axis=-1)  # (minibatch_size,)
 
         # optimize Q-estimator
         def loss_function(model):
@@ -227,6 +218,31 @@ class DQN:
             x = nnx.relu(self.linear1(x))  # (minibatch_size, 3200) -> (minibatch_size, 256)
             x = self.linear2(x)  # (minibatch_size, 256) -> (minibatch_size, num_actions)
             return x
+
+    def save_model(self, model_path):
+        _, state, = nnx.split(self.q_estimator)
+
+        def save_pytree(pytree, file_path):
+            with open(file_path, 'wb') as f:
+                f.write(flax.serialization.to_bytes(pytree))
+
+        flat_state, _ = jax.tree_util.tree_flatten(state)
+        save_pytree(flat_state, model_path)
+        print(f"model saved to {model_path}.")
+
+    def load_model(self, model_path):
+        def load_pytree(filepath, tree_structure):
+            with open(filepath, 'rb') as f:
+                flat_state = f.read()
+            return flax.serialization.from_bytes(tree_structure, flat_state)
+
+        _, state = nnx.split(self.q_estimator)
+        _, tree_structure = jax.tree_util.tree_flatten(state)
+        flat_state = load_pytree(model_path, tree_structure)
+
+        # restore model
+        state = jax.tree_util.tree_unflatten(tree_structure, flat_state.values())
+        return state
 
     class Replay_Memory():
         """

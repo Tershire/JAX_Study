@@ -1,4 +1,4 @@
-# learn_to_escape_maze_pytorch.py
+# learn_to_control_cartpole_pytorch.py
 
 # Arz
 # 2024 AUG 02 (FRI)

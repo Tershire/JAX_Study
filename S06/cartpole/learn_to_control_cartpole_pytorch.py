@@ -1,39 +1,49 @@
-# learn_to_play_space_invaders.py
+# learn_to_control_cartpole_pytorch.py
 
 # Arz
-# 2024 JUN 03 (MON)
+# 2024 AUG 02 (FRI)
 
 """
-train agent to play <space invaders>
+train agent to control cartpole.
 """
+import torch
 
 # reference:
+# - https://github.com/seungeunrho/minimalRL/blob/master/dqn.py
 
 
 import gymnasium
 import numpy as np
 import matplotlib.pyplot as plt
-from learning_algorithms import DQN
-from flax import nnx
+from learning_algorithms_pytorch import DQN
 from pathlib import Path
 
 
 mode = "train"  # train | test
-model_path = Path("./model/dqn.bin")
-save_model = True
+model_path = Path("./model/dqn.pt")
+save_model = False
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"  # found GPU is slower for this implementation.
+print(device)
 
 # load environment
-env = gymnasium.make("ALE/SpaceInvaders-v5", obs_type="rgb", render_mode="rgb_array")
+render_mode = "rgb_array"
+do_render = False
+if do_render:
+    render_mode = "human"
+
+env = gymnasium.make("CartPole-v1", render_mode=render_mode)
 
 # load agent
-learning_rate = 2.5E-4  # learning rate
-memory_capacity = int(1E4)  # replay memory capacity
-agent = DQN(env, learning_rate, memory_capacity, rngs=nnx.Rngs(0))
+learning_rate = 1.0E-4  # learning rate
+memory_capacity = int(2E4)  # replay memory capacity
+agent = DQN(env, learning_rate, memory_capacity)
 
 # training or test
 match mode:
     case "train":
-        max_num_episodes = 100
+        max_num_episodes = 500
         agent.train(max_num_episodes)
 
         if save_model:
@@ -51,6 +61,7 @@ if mode == "train":
             average_cumulative_rewards.append(average_cumulative_reward)
 
         return average_cumulative_rewards
+
 
     plt.plot(np.arange(1, len(agent.cumulative_rewards) + 1), agent.cumulative_rewards)
     M = 10

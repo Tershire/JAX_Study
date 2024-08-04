@@ -26,15 +26,15 @@ if do_render:
 env = gymnasium.make("CartPole-v1", render_mode=render_mode)
 
 # load agent
-alpha = 1.5E-4  # learning rate
+alpha = 1.0E-4  # learning rate
 memory_capacity = int(1E4)  # replay memory capacity
 agent = DQN(env, alpha, memory_capacity, rngs=nnx.Rngs(0))
 
 # training setting
-max_num_episodes = 10
+max_num_episodes = 200
 
 # training
-agent.train(max_num_episodes, save_model=True)
+agent.train(max_num_episodes)
 
 # training result
 def compute_average_cumulative_rewards(agent, M=10):
