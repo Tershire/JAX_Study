@@ -1,0 +1,3 @@
+S07 mostly investigates Yellow Card Prodo's works on RL,
+then compare them with the works of Arz to formulate the correct method to write RL algorithms.
+
