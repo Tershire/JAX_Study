@@ -18,6 +18,7 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+import cv2 as cv
 from collections import namedtuple, deque
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -265,7 +266,13 @@ class DQN_Prodo:
         # result
         self.cumulative_rewards = []
 
-    def train(self, max_num_episodes):
+        video_path = f"./video/final_episode_training.mp4"
+        frame = self.env.render()
+        frame_height, frame_width, _ = frame.shape
+        fourcc = cv.VideoWriter_fourcc(*'mp4v')
+        self.video_writer = cv.VideoWriter(video_path, fourcc, 30, (frame_width, frame_height))
+
+    def train(self, max_num_episodes, save_final_episode_video=False):
         for episode in range(max_num_episodes):
             print("episode:", episode)
 
@@ -275,8 +282,14 @@ class DQN_Prodo:
 
             # result
             cumulative_reward = 0
+            frames = []  # for video
 
             while True:
+                # video
+                if save_final_episode_video and episode == max_num_episodes - 1:
+                    frame = self.env.render()
+                    frames.append(frame)
+
                 # {select & do} action
                 action_t = self.select_action(state_t)
                 state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
@@ -321,6 +334,12 @@ class DQN_Prodo:
 
             # result
             self.cumulative_rewards.append(cumulative_reward)
+
+            if save_final_episode_video and episode == max_num_episodes - 1:
+                for frame in frames:
+                    self.video_writer.write(cv.cvtColor(frame, cv.COLOR_RGB2BGR))
+
+        self.video_writer.release()
 
     def select_action(self, state):
         """
