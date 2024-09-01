@@ -21,6 +21,7 @@ import torch.nn as nn
 import cv2 as cv
 from collections import namedtuple, deque
 
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = "cpu"
 print(device)
@@ -44,13 +45,20 @@ class DQN:
         self.replay_memory = self.Replay_Memory(self.memory_capacity)
 
         self.q_estimator = self.Q_Estimator(self.num_observations, self.num_actions).to(device)
-        # self.loss_function = nn.MSELoss()
-        self.loss_function = nn.SmoothL1Loss()
+        self.loss_function = nn.MSELoss()
+        # self.loss_function = nn.SmoothL1Loss()
         # self.optimizer = torch.optim.RMSprop(self.q_estimator.parameters(), lr=learning_rate, momentum=0.95)
         self.optimizer = torch.optim.Adam(self.q_estimator.parameters(), lr=learning_rate)
-        self.optimizer_update_interval = 2
+        self.optimizer_update_interval = 1
         self.target_q_estimator = self.Q_Estimator(self.num_observations, self.num_actions).to(device)
-        self.target_q_estimator_update_interval = int(1E3)
+        self.target_q_estimator_update_interval = int(1E2)  # 1E3 -> very bad, 1E2 -> very good
+
+        self.target_q_estimator.load_state_dict(self.q_estimator.state_dict())
+
+        # action selection
+        self.epsilon = 1.0
+        self.epsilon_end = 0.01
+        self.epsilon_decay = 0.995
 
         # result
         self.cumulative_rewards = []
@@ -71,23 +79,25 @@ class DQN:
                 action_t = self.select_action(state_t, episode, max_num_episodes)
                 state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
                 state_tp1 = torch.FloatTensor(state_tp1).to(device)
+                done = terminated or truncated
 
                 # remember experience
-                experience = Experience(state_t, action_t, reward_tp1, state_tp1)
+                experience = Experience_With_Dones(state_t, action_t, reward_tp1, state_tp1, done)
                 self.replay_memory.remember(experience)
 
                 # retrospect and update Q
-                if len(self.replay_memory) >= self.minibatch_size * 50 and self.t % self.optimizer_update_interval == 0:
+                if len(self.replay_memory) >= self.minibatch_size * 2 and self.t % self.optimizer_update_interval == 0:
                     experiences = self.replay_memory.retrieve_random_experiences(self.minibatch_size)
 
-                    experience_minibatch = Experience(*zip(*experiences))
+                    experience_minibatch = Experience_With_Dones(*zip(*experiences))
                     state_j_minibatch = torch.stack(experience_minibatch.state_t).to(device)
                     action_j_minibatch = torch.LongTensor(np.array(experience_minibatch.action_t)).unsqueeze(1).to(device)
                     reward_jp1_minibatch = torch.FloatTensor(np.array(experience_minibatch.reward_tp1)).to(device)
                     state_jp1_minibatch = torch.stack(experience_minibatch.state_tp1).to(device)
+                    done_j_minibatch = torch.IntTensor(experience_minibatch.done).to(device)
 
                     # update Q
-                    self.update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
+                    self.update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch, done_j_minibatch,
                                   self.q_estimator, self.target_q_estimator, self.optimizer, self.gamma,
                                   self.loss_function)
 
@@ -112,7 +122,6 @@ class DQN:
                 cumulative_reward += reward_tp1
 
                 # termination
-                done = terminated or truncated
                 if done:
                     break
 
@@ -124,8 +133,8 @@ class DQN:
         epsilon-greedy with decaying epsilon.
         x: state history
         """
-        # epsilon = 0.1 + (1 - 0.1) * np.exp(-episode / (max_num_episodes * 100))
-        epsilon = max(0.01, 0.1 - 0.01 * (episode / 50))
+        epsilon = 0.05 + (1 - 0.05) * np.exp(-episode / (max_num_episodes * 0.1))  # arz 1 -> bad, 0.1 -> good
+        # self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)  # prodo
         if np.random.rand() < epsilon:
             action = self.env.action_space.sample()
         else:
@@ -136,13 +145,12 @@ class DQN:
         return action
 
     @staticmethod
-    def update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
+    def update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch, done_j_minibatch,
                  q_estimator, target_q_estimator, optimizer, gamma, loss_function):
 
         with torch.no_grad():
             target_q_values = reward_jp1_minibatch + \
-                              gamma * torch.max(target_q_estimator(state_jp1_minibatch), dim=1).values  # (minibatch_size,)
-
+                              gamma * torch.max(target_q_estimator(state_jp1_minibatch), dim=1).values * (1 - done_j_minibatch)  # (minibatch_size,)
         q_values = q_estimator(state_j_minibatch).gather(1, action_j_minibatch).squeeze(1)  # (minibatch_size,)
         loss = loss_function(target_q_values, q_values)
 
@@ -152,46 +160,57 @@ class DQN:
         # torch.nn.utils.clip_grad_value_(q_estimator.parameters(), 100)  # in-place gradient clipping
         optimizer.step()
 
-    def test(self, model_path):
+    def test(self, model_path, save_video=False):
         self.q_estimator.load_state_dict(torch.load(model_path))
 
         # result
-        agent_positions = []
+        cumulative_reward = 0
+        actions = []
 
-        episode = 0
-        while self.env.grid[self.env.agent_position[0], self.env.agent_position[1]] != maze_environment.Cell.GOAL:
-            print("episode:", episode)
+        if save_video:
+            video_path = f"./video/dqn_test.mp4"
+            frame = self.env.render()
+            frame_height, frame_width, _ = frame.shape
+            fourcc = cv.VideoWriter_fourcc(*'mp4v')
+            self.video_writer = cv.VideoWriter(video_path, fourcc, 30, (frame_width, frame_height))
+
+            frames = []
+
+        # reset world
+        state_t, _ = self.env.reset()
+        state_t = torch.FloatTensor(state_t).to(device)
+
+        while True:
+            # video
+            if save_video:
+                frame = self.env.render()
+                frames.append(frame)
+
+            # {select & do} action
+            with torch.no_grad():
+                action_t = torch.argmax(self.q_estimator(state_t)).item()
+            state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
+            state_tp1 = torch.FloatTensor(state_tp1).to(device)
+            done = terminated or truncated
+
+            # step forward
+            state_t = state_tp1
 
             # result
-            agent_positions = []
-            actions = []
+            cumulative_reward += reward_tp1
+            actions.append(action_t)
 
-            # reset world
-            state_t, _ = self.env.reset()
-            state_t = torch.FloatTensor(state_t).to(device)
+            # termination
+            if done:
+                break
 
-            while True:
-                # {select & do} action
-                with torch.no_grad():
-                    action_t = torch.argmax(self.q_estimator(state_t)).item()
-                state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
-                state_tp1 = torch.FloatTensor(state_tp1).to(device)
+        # result
+        if save_video:
+            for frame in frames:
+                self.video_writer.write(cv.cvtColor(frame, cv.COLOR_RGB2BGR))
+            self.video_writer.release()
 
-                # step forward
-                state_t = state_tp1
-
-                # result
-                agent_positions.append((self.env.agent_position[0], self.env.agent_position[1]))
-                actions.append(action_t)
-
-                # termination
-                done = terminated or truncated
-                if done:
-                    break
-
-            episode += 1
-
-        return agent_positions, actions
+        return cumulative_reward, actions
 
     def save_model(self, model_path):
         torch.save(self.q_estimator.state_dict(), model_path)
@@ -225,7 +244,7 @@ class DQN:
         def __init__(self, memory_capacity):
             self.storage = deque([], maxlen=memory_capacity)
 
-        def remember(self, experience: Experience):
+        def remember(self, experience: Experience_With_Dones):
             self.storage.append(experience)
 
         def retrieve_random_experiences(self, batch_size):

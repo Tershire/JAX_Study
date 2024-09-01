@@ -6,12 +6,12 @@
 """
 train agent to control cartpole.
 """
-import torch
 
 # reference:
 # - https://github.com/seungeunrho/minimalRL/blob/master/dqn.py
 
 
+import torch
 import gymnasium
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,9 +19,10 @@ from learning_algorithms_pytorch import DQN
 from pathlib import Path
 
 
-mode = "train"  # train | test
+mode = "test"  # train | test
 model_path = Path("./model/dqn.pt")
 save_model = False
+save_video = False
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = "cpu"  # found GPU is slower for this implementation.
@@ -36,21 +37,22 @@ if do_render:
 env = gymnasium.make("CartPole-v1", render_mode=render_mode)
 
 # load agent
-learning_rate = 1.0E-4  # learning rate
-memory_capacity = int(2E4)  # replay memory capacity
+learning_rate = 1.0E-3  # learning rate
+memory_capacity = int(1E4)  # replay memory capacity
 agent = DQN(env, learning_rate, memory_capacity)
 
 # training or test
 match mode:
     case "train":
-        max_num_episodes = 500
+        max_num_episodes = 200
         agent.train(max_num_episodes)
 
         if save_model:
             agent.save_model(model_path=model_path)
 
     case "test":
-        state_trajectory, action_trajectory = agent.test(model_path=model_path)
+        cumulative_reward, action_trajectory = agent.test(model_path=model_path, save_video=save_video)
+        print("cumulative_reward:", cumulative_reward)
 
 # result
 if mode == "train":
