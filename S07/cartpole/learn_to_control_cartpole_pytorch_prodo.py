@@ -1,4 +1,4 @@
-# learn_to_control_cartpole_q_learning.py
+# learn_to_control_cartpole_pytorch_prodo.py
 
 # Arz
 # 2024 AUG 31 (FRI)
@@ -17,7 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from learning_algorithms_pytorch import Q_Learning
+from learning_algorithms_pytorch import DQN_Prodo
 
 
 mode = "train"  # train | test
@@ -30,20 +30,21 @@ print(device)
 
 # load environment
 render_mode = "rgb_array"
-do_render = True
+do_render = False
 if do_render:
     render_mode = "human"
 
 env = gymnasium.make("CartPole-v1", render_mode=render_mode)
 
 # load agent
-learning_rate = 0.1  # learning rate
-agent = Q_Learning(env, alpha=learning_rate, gamma=0.99, num_bins=(10, 10, 10, 10))
+learning_rate = 1.0E-3  # learning rate
+memory_capacity = int(1E4)  # replay memory capacity
+agent = DQN_Prodo(env, learning_rate, memory_capacity)
 
 # training or test
 match mode:
     case "train":
-        max_num_episodes = 240
+        max_num_episodes = 300
         agent.train(max_num_episodes)
 
         if save_model:

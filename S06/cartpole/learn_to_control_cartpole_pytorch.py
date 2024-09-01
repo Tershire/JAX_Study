@@ -43,7 +43,7 @@ agent = DQN(env, learning_rate, memory_capacity)
 # training or test
 match mode:
     case "train":
-        max_num_episodes = 500
+        max_num_episodes = 100
         agent.train(max_num_episodes)
 
         if save_model:
