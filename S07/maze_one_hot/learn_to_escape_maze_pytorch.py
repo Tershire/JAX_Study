@@ -1,4 +1,4 @@
-# learn_to_control_cartpole_jax.py
+# learn_to_control_cartpole_pytorch.py
 
 # Arz
 # 2024 AUG 02 (FRI)
@@ -6,6 +6,7 @@
 """
 train agent to escape maze.
 """
+import torch
 
 # reference:
 
@@ -13,14 +14,17 @@ train agent to escape maze.
 import maze_environment
 import numpy as np
 import matplotlib.pyplot as plt
-from learning_algorithms import DQN
-from flax import nnx
+from learning_algorithms_pytorch import DQN
 from pathlib import Path
 
 
-mode = "test"  # train | test
-model_path = Path("./model/dqn.bin")
+mode = "train"  # train | test
+model_path = Path("./model/dqn.pt")
 save_model = False
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"  # found GPU is slower for this implementation.
+print(device)
 
 # load environment
 wall_positions = np.array([(1, 3), (1, 4), (2, 1), (3, 1), (3, 3), (4, 3)])
@@ -31,7 +35,7 @@ print(env.render("cell_name"))
 # load agent
 learning_rate = 1E-4  # learning rate
 memory_capacity = int(1E4)  # replay memory capacity
-agent = DQN(env, learning_rate, memory_capacity, rngs=nnx.Rngs(0))
+agent = DQN(env, learning_rate, memory_capacity)
 
 # training or test
 match mode:
@@ -55,6 +59,7 @@ if mode == "train":
 
         return average_cumulative_rewards
 
+
     plt.plot(np.arange(1, len(agent.cumulative_rewards) + 1), agent.cumulative_rewards)
     M = 10
     plt.plot(np.arange(M, len(agent.cumulative_rewards) + 1),
@@ -69,8 +74,10 @@ def build_q_table(env, agent):
     q_table = np.zeros((env.observation_space.n, env.action_space.n))
     for state_id in range(q_table.shape[0]):
         state = agent.one_hot_encode(state_id)
-        q_value = agent.q_estimator(state)
-        q_table[state_id] = q_value
+        state = torch.FloatTensor(state).to(device)
+        with torch.no_grad():
+            q_value = agent.q_estimator(state)
+        q_table[state_id] = q_value.cpu()
 
     return q_table
 

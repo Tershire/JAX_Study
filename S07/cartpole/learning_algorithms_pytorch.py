@@ -28,7 +28,7 @@ print(device)
 
 Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "state_tp1"))
 
-Experience_With_Dones = namedtuple("experience_with_dones", ("state_t", "action_t", "reward_tp1", "state_tp1", "done"))
+Experience_With_Done = namedtuple("experience_with_dones", ("state_t", "action_t", "reward_tp1", "state_tp1", "done"))
 
 
 class DQN:
@@ -82,14 +82,14 @@ class DQN:
                 done = terminated or truncated
 
                 # remember experience
-                experience = Experience_With_Dones(state_t, action_t, reward_tp1, state_tp1, done)
+                experience = Experience_With_Done(state_t, action_t, reward_tp1, state_tp1, done)
                 self.replay_memory.remember(experience)
 
                 # retrospect and update Q
                 if len(self.replay_memory) >= self.minibatch_size * 2 and self.t % self.optimizer_update_interval == 0:
                     experiences = self.replay_memory.retrieve_random_experiences(self.minibatch_size)
 
-                    experience_minibatch = Experience_With_Dones(*zip(*experiences))
+                    experience_minibatch = Experience_With_Done(*zip(*experiences))
                     state_j_minibatch = torch.stack(experience_minibatch.state_t).to(device)
                     action_j_minibatch = torch.LongTensor(np.array(experience_minibatch.action_t)).unsqueeze(1).to(device)
                     reward_jp1_minibatch = torch.FloatTensor(np.array(experience_minibatch.reward_tp1)).to(device)
@@ -244,7 +244,7 @@ class DQN:
         def __init__(self, memory_capacity):
             self.storage = deque([], maxlen=memory_capacity)
 
-        def remember(self, experience: Experience_With_Dones):
+        def remember(self, experience: Experience_With_Done):
             self.storage.append(experience)
 
         def retrieve_random_experiences(self, batch_size):
@@ -316,14 +316,14 @@ class DQN_Prodo:
                 done = terminated or truncated
 
                 # remember experience
-                experience = Experience_With_Dones(state_t, action_t, reward_tp1, state_tp1, done)
+                experience = Experience_With_Done(state_t, action_t, reward_tp1, state_tp1, done)
                 self.replay_memory.remember(experience)
 
                 # retrospect and update Q
                 if len(self.replay_memory) >= self.minibatch_size and self.t % self.optimizer_update_interval == 0:
                     experiences = self.replay_memory.retrieve_random_experiences(self.minibatch_size)
 
-                    experience_minibatch = Experience_With_Dones(*zip(*experiences))
+                    experience_minibatch = Experience_With_Done(*zip(*experiences))
                     state_j_minibatch = torch.stack(experience_minibatch.state_t).to(device)
                     action_j_minibatch = torch.LongTensor(np.array(experience_minibatch.action_t)).unsqueeze(1).to(device)
                     reward_jp1_minibatch = torch.FloatTensor(np.array(experience_minibatch.reward_tp1)).to(device)
@@ -424,7 +424,7 @@ class DQN_Prodo:
         def __init__(self, memory_capacity):
             self.storage = deque([], maxlen=memory_capacity)
 
-        def remember(self, experience: Experience_With_Dones):
+        def remember(self, experience: Experience_With_Done):
             self.storage.append(experience)
 
         def retrieve_random_experiences(self, batch_size):

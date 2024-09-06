@@ -18,7 +18,7 @@ from flax import nnx
 from pathlib import Path
 
 
-mode = "test"  # train | test
+mode = "train"  # train | test
 model_path = Path("./model/dqn.bin")
 save_model = False
 
@@ -36,7 +36,7 @@ agent = DQN(env, learning_rate, memory_capacity, rngs=nnx.Rngs(0))
 # training or test
 match mode:
     case "train":
-        max_num_episodes = 1200
+        max_num_episodes = 120
         agent.train(max_num_episodes)
 
         if save_model:

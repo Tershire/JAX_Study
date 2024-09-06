@@ -1,32 +1,27 @@
-# learn_to_control_cartpole_pytorch.py
+# learn_to_control_cartpole_jax.py
 
 # Arz
-# 2024 AUG 31 (FRI)
+# 2024 SEP 06 (FRI)
 
 """
 train agent to control cartpole.
 """
 
 # reference:
-# - https://github.com/seungeunrho/minimalRL/blob/master/dqn.py
 
 
-import torch
 import gymnasium
 import numpy as np
 import matplotlib.pyplot as plt
-from learning_algorithms_pytorch import DQN
+from learning_algorithms_jax import DQN
+from flax import nnx
 from pathlib import Path
 
 
 mode = "test"  # train | test
-model_path = Path("./model/dqn.pt")
+model_path = Path("./model/dqn.bin")
 save_model = False
 save_video = False
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = "cpu"  # found GPU is slower for this implementation.
-print(device)
 
 # load environment
 render_mode = "rgb_array"
@@ -37,9 +32,9 @@ if do_render:
 env = gymnasium.make("CartPole-v1", render_mode=render_mode)
 
 # load agent
-learning_rate = 1.0E-3  # learning rate
+learning_rate = 1E-3  # learning rate
 memory_capacity = int(1E4)  # replay memory capacity
-agent = DQN(env, learning_rate, memory_capacity)
+agent = DQN(env, learning_rate, memory_capacity, rngs=nnx.Rngs(0))
 
 # training or test
 match mode:
@@ -55,7 +50,7 @@ match mode:
             env = gymnasium.make("CartPole-v1", render_mode="rgb_array")
         else:
             env = gymnasium.make("CartPole-v1", render_mode="human")
-        agent = DQN(env, learning_rate, memory_capacity)
+        agent = DQN(env, learning_rate, memory_capacity, rngs=nnx.Rngs(0))
 
         cumulative_reward, action_trajectory = agent.test(model_path=model_path, save_video=save_video)
         print("cumulative_reward:", cumulative_reward)
@@ -69,7 +64,6 @@ if mode == "train":
             average_cumulative_rewards.append(average_cumulative_reward)
 
         return average_cumulative_rewards
-
 
     plt.plot(np.arange(1, len(agent.cumulative_rewards) + 1), agent.cumulative_rewards)
     M = 10

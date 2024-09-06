@@ -24,7 +24,9 @@ from collections import namedtuple, deque
 import maze_environment
 
 
-Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "state_tp1"))
+# Experience = namedtuple("experience", ("state_t", "action_t", "reward_tp1", "state_tp1"))
+
+Experience = namedtuple("experience_with_dones", ("state_t", "action_t", "reward_tp1", "state_tp1", "done"))
 
 
 class DQN:
@@ -65,19 +67,20 @@ class DQN:
                 action_t = self.select_action(state_t, episode, max_num_episodes)
                 state_tp1, reward_tp1, terminated, truncated, _ = self.env.step(action_t)
                 state_tp1 = self.one_hot_encode(state_tp1)
+                done = terminated or truncated
 
                 # remember experience
-                experience = Experience(state_t, action_t, reward_tp1, state_tp1)
+                experience = Experience(state_t, action_t, reward_tp1, state_tp1, done)
                 self.replay_memory.remember(experience)
 
                 # retrospect and update Q
                 if len(self.replay_memory) >= self.minibatch_size and self.t % self.optimizer_update_interval == 0:
                     experiences = self.replay_memory.retrieve_random_experiences(self.minibatch_size)
-                    state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch = \
+                    state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch, done_j_minibatch = \
                         map(jnp.array, Experience(*zip(*experiences)))
 
                     # update Q
-                    self.update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
+                    self.update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch, done_j_minibatch,
                                   self.q_estimator, self.target_q_estimator, self.optimizer, self.gamma)
 
                 # update target Q-estimator
@@ -93,7 +96,6 @@ class DQN:
                 cumulative_reward += reward_tp1
 
                 # termination
-                done = terminated or truncated
                 if done:
                     break
 
@@ -116,11 +118,12 @@ class DQN:
 
     @staticmethod
     @nnx.jit
-    def update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch,
+    def update_q(state_j_minibatch, action_j_minibatch, reward_jp1_minibatch, state_jp1_minibatch, done_j_minibatch,
                  q_estimator, target_q_estimator, optimizer, gamma):
 
         target_q_values = reward_jp1_minibatch + \
                           gamma * jnp.max(target_q_estimator(state_jp1_minibatch), axis=1)  # (minibatch_size,)
+                          # gamma * jnp.max(target_q_estimator(state_jp1_minibatch), axis=1) * (1 - done_j_minibatch)  # (minibatch_size,)
 
         # optimize Q-estimator
         def loss_function(model):

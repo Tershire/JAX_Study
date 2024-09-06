@@ -1,4 +1,4 @@
-# learn_to_control_cartpole.py
+# learn_to_control_cartpole_jax.py
 
 # Arz
 # 2024 JUN 15 (MON)
