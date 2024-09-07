@@ -1,4 +1,4 @@
-# learning_algorithms.py
+# learning_algorithms_jax.py
 
 # Arz
 # 2024 AUG 31 (SUN)
