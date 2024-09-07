@@ -19,7 +19,7 @@ from flax import nnx
 from pathlib import Path
 
 
-game_name = "Pong-v5"
+game_name = "Atlantis-v5"  # VideoPinball-v5", # Atlantis-v5"
 mode = "test"  # train | test
 model_path = Path(f"./model/dqn_{game_name}")
 save_model = False

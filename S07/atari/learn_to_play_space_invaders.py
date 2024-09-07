@@ -20,7 +20,7 @@ from pathlib import Path
 
 
 game_name = "SpaceInvaders-v5"
-mode = "train"  # train | test
+mode = "test"  # train | test
 model_path = Path("model/dqn_SpaceInvaders-v5.bin")
 save_model = False
 save_video = False
